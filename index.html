@@ -370,7 +370,7 @@ body {
 const AI_CONFIG = {
   kimiKey: '',
   claudeKey: '',
-  proxyURL: 'https://corsproxy.io/?',
+  proxyURL: '/api/proxy',
   get activeProvider(){
     if(this.claudeKey) return 'claude';
     if(this.kimiKey) return 'kimi';
@@ -426,7 +426,7 @@ ${exclude.length ? `已有词（不要重复）：${exclude.join('、')}` : ''}
     let tokenUsed = '?';
 
     if(AI_CONFIG.activeProvider === 'claude') {
-      const res = await fetch(`${AI_CONFIG.proxyURL}https://api.anthropic.com/v1/messages`, {
+      const res = await fetch(`${AI_CONFIG.proxyURL}?target=claude`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -445,7 +445,7 @@ ${exclude.length ? `已有词（不要重复）：${exclude.join('、')}` : ''}
       tokenUsed = (data.usage?.input_tokens||0) + (data.usage?.output_tokens||0);
 
     } else {
-      const res = await fetch(`${AI_CONFIG.proxyURL}https://api.moonshot.cn/v1/chat/completions`, {
+      const res = await fetch(`${AI_CONFIG.proxyURL}?target=kimi`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
