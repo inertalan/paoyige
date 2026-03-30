@@ -1,6 +1,4 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-
-const CORS = {
+const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key, anthropic-version",
@@ -1034,25 +1032,25 @@ window.addEventListener('load', initCanvas);
 </html>
 `;
 
-async function handler(req: Request): Promise<Response> {
+Deno.serve(async (req: Request): Promise<Response> => {
   const url = new URL(req.url);
 
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers: CORS });
+    return new Response(null, { status: 200, headers: CORS_HEADERS });
   }
 
   if (url.pathname === "/api/proxy") {
     const target = url.searchParams.get("target");
-    let apiUrl: string;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
+    let apiUrl: string;
 
     if (target === "claude") {
       apiUrl = "https://api.anthropic.com/v1/messages";
-      headers["x-api-key"] = req.headers.get("x-api-key") || "";
+      headers["x-api-key"] = req.headers.get("x-api-key") ?? "";
       headers["anthropic-version"] = "2023-06-01";
     } else {
       apiUrl = "https://api.moonshot.cn/v1/chat/completions";
-      headers["Authorization"] = req.headers.get("authorization") || "";
+      headers["Authorization"] = req.headers.get("authorization") ?? "";
     }
 
     try {
@@ -1061,12 +1059,12 @@ async function handler(req: Request): Promise<Response> {
       const data = await res.text();
       return new Response(data, {
         status: res.status,
-        headers: { "Content-Type": "application/json", ...CORS },
+        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
       });
     } catch (e) {
       return new Response(JSON.stringify({ error: String(e) }), {
         status: 500,
-        headers: { "Content-Type": "application/json", ...CORS },
+        headers: { "Content-Type": "application/json", ...CORS_HEADERS },
       });
     }
   }
@@ -1074,6 +1072,4 @@ async function handler(req: Request): Promise<Response> {
   return new Response(INDEX_HTML, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
-}
-
-serve(handler, { port: 8000 });
+});
