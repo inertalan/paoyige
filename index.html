@@ -370,7 +370,7 @@ body {
 const AI_CONFIG = {
   kimiKey: '',
   claudeKey: '',
-  // 当前用哪个：'kimi' | 'claude' | ''
+  proxyURL: 'https://paoyige.inertalan.workers.dev',
   get activeProvider(){
     if(this.claudeKey) return 'claude';
     if(this.kimiKey) return 'kimi';
@@ -426,14 +426,12 @@ ${exclude.length ? `已有词（不要重复）：${exclude.join('、')}` : ''}
     let tokenUsed = '?';
 
     if(AI_CONFIG.activeProvider === 'claude') {
-      // Claude API (Anthropic)
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch(`${AI_CONFIG.proxyURL}?target=claude`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': AI_CONFIG.claudeKey,
           'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5',
@@ -444,11 +442,10 @@ ${exclude.length ? `已有词（不要重复）：${exclude.join('、')}` : ''}
       if (!res.ok) throw new Error(`Claude API error ${res.status}`);
       const data = await res.json();
       text = data.content?.[0]?.text?.trim() || '';
-      tokenUsed = data.usage?.input_tokens + data.usage?.output_tokens || '?';
+      tokenUsed = (data.usage?.input_tokens||0) + (data.usage?.output_tokens||0);
 
     } else {
-      // Kimi API
-      const res = await fetch('https://api.moonshot.cn/v1/chat/completions', {
+      const res = await fetch(`${AI_CONFIG.proxyURL}?target=kimi`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
