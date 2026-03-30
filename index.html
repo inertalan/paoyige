@@ -315,11 +315,14 @@ body {
     </div>
   </div>
   <div class="step-info">探索步数：<b id="stepCount">0</b> &nbsp;·&nbsp; 探索 3 步解锁 ✨彩蛋</div>
-  <div class="input-section" style="border-top:none;padding-top:0">
-    <input type="password" id="apiKeyInput" placeholder="Kimi API Key（sk-xxx）" style="font-size:12px"
-      oninput="AI_CONFIG.apiKey=this.value"
+  <div class="input-section" style="border-top:none;padding-top:0;gap:6px">
+    <input type="password" id="kimiKeyInput" placeholder="Kimi API Key（sk-xxx）" style="font-size:12px"
+      oninput="AI_CONFIG.kimiKey=this.value; updateAiStatus()"
     />
-    <div id="aiStatus" style="font-size:10px;color:var(--text-dim);padding:0 2px">填入后自动启用 AI 发散 ✨</div>
+    <input type="password" id="claudeKeyInput" placeholder="Claude API Key（sk-ant-xxx）" style="font-size:12px"
+      oninput="AI_CONFIG.claudeKey=this.value; updateAiStatus()"
+    />
+    <div id="aiStatus" style="font-size:10px;color:var(--text-dim);padding:0 2px">填入任意 Key 启用 AI 发散 ✨</div>
   </div>
 
   <!-- Dim picker — fixed in left bar -->
@@ -365,18 +368,29 @@ body {
 <script>
 // ── AI Config ────────────────────────────────────────────────────────────────
 const AI_CONFIG = {
-  apiKey: '',  // 填入你的 Kimi API Key，格式：sk-xxxx
-  baseURL: 'https://api.moonshot.cn/v1',
-  model: 'moonshot-v1-8k',
+  kimiKey: '',
+  claudeKey: '',
+  // 当前用哪个：'kimi' | 'claude' | ''
+  get activeProvider(){
+    if(this.claudeKey) return 'claude';
+    if(this.kimiKey) return 'kimi';
+    return '';
+  },
 };
 
 function setAiStatus(msg, color='var(--text-dim)'){
   const el=document.getElementById('aiStatus');
   if(el){ el.textContent=msg; el.style.color=color; }
 }
+function updateAiStatus(){
+  const p=AI_CONFIG.activeProvider;
+  if(p==='claude') setAiStatus('✅ 使用 Claude 发散', '#6C63FF');
+  else if(p==='kimi') setAiStatus('✅ 使用 Kimi 发散', '#16A34A');
+  else setAiStatus('填入任意 Key 启用 AI 发散 ✨', 'var(--text-dim)');
+}
 
 async function aiExpand(word, dimId, dimLabel, exclude=[]) {
-  if (!AI_CONFIG.apiKey) {
+  if (!AI_CONFIG.activeProvider) {
     setAiStatus('未填入 Key，使用本地词库', 'var(--text-dim)');
     return null;
   }
@@ -408,26 +422,55 @@ ${exclude.length ? `已有词（不要重复）：${exclude.join('、')}` : ''}
 
   setAiStatus('🤖 AI 生成中…', '#F0A500');
   try {
-    const res = await fetch(`${AI_CONFIG.baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AI_CONFIG.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: AI_CONFIG.model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.9,
-        max_tokens: 100,
-      }),
-    });
-    if (!res.ok) throw new Error(`API error ${res.status}`);
-    const data = await res.json();
-    const text = data.choices?.[0]?.message?.content?.trim() || '';
+    let text = '';
+    let tokenUsed = '?';
+
+    if(AI_CONFIG.activeProvider === 'claude') {
+      // Claude API (Anthropic)
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': AI_CONFIG.claudeKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5',
+          max_tokens: 100,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+      if (!res.ok) throw new Error(`Claude API error ${res.status}`);
+      const data = await res.json();
+      text = data.content?.[0]?.text?.trim() || '';
+      tokenUsed = data.usage?.input_tokens + data.usage?.output_tokens || '?';
+
+    } else {
+      // Kimi API
+      const res = await fetch('https://api.moonshot.cn/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${AI_CONFIG.kimiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'moonshot-v1-8k',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.9,
+          max_tokens: 100,
+        }),
+      });
+      if (!res.ok) throw new Error(`Kimi API error ${res.status}`);
+      const data = await res.json();
+      text = data.choices?.[0]?.message?.content?.trim() || '';
+      tokenUsed = data.usage?.total_tokens || '?';
+    }
+
     const words = text.split(/[,，]/).map(w => w.trim()).filter(w => w && w.length <= 12);
     if (words.length >= 2) {
-      const used = data.usage;
-      setAiStatus(`✅ AI 完成 · 消耗 ${used?.total_tokens||'?'} tokens`, '#16A34A');
+      const provider = AI_CONFIG.activeProvider === 'claude' ? 'Claude' : 'Kimi';
+      setAiStatus(`✅ ${provider} 完成 · ${tokenUsed} tokens`, '#16A34A');
       return words.slice(0, 3);
     }
   } catch(e) {
