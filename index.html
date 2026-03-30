@@ -328,6 +328,7 @@ body {
     <div class="dim-grid" id="dimGrid"></div>
     <div class="popup-actions">
       <button class="popup-btn" id="popupStar" onclick="toggleFavCurrent()">⭐ 收藏</button>
+      <button class="popup-btn" id="popupDelete" onclick="deleteCurrentNode()" style="border-color:#ffcdd2;color:#e53935">🗑 删除</button>
       <button class="popup-btn" onclick="closePopup()">关闭</button>
     </div>
   </div>
@@ -769,12 +770,37 @@ function showPopup(node, cx, cy){
   starBtn.className='popup-btn'+(starred?' starred':'');
   starBtn.textContent=starred?'★ 已收藏':'⭐ 收藏';
 
+  // 根节点不显示删除按钮
+  const delBtn=document.getElementById('popupDelete');
+  delBtn.style.display=node.parentId===null?'none':'block';
+
   document.getElementById('popupMenu').classList.add('show');
 }
 
 function closePopup(){
   document.getElementById('popupMenu').classList.remove('show');
   currentPopupNode=null;
+}
+
+function deleteCurrentNode(){
+  if(!currentPopupNode) return;
+  const n=currentPopupNode;
+  // 不允许删根节点
+  if(n.parentId===null){ closePopup(); return; }
+  // 收集所有子孙 id
+  const toDelete=new Set([n.id, ...getDescendants(n.id).map(d=>d.id)]);
+  // 从收藏夹移除
+  const deletedWords=nodes.filter(nd=>toDelete.has(nd.id)).map(nd=>nd.word);
+  favorites=favorites.filter(f=>!deletedWords.includes(f.word));
+  // 删节点和边
+  nodes=nodes.filter(nd=>!toDelete.has(nd.id));
+  edges=edges.filter(e=>!toDelete.has(e.to)&&!toDelete.has(e.from));
+  // 清弹簧状态
+  toDelete.forEach(id=>delete springTargets[id]);
+  closePopup();
+  selectedNode=null;
+  updateFavUI();
+  render();
 }
 
 function toggleFavCurrent(){
