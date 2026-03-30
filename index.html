@@ -445,8 +445,11 @@ ${exclude.length ? `已有词（不要重复）：${exclude.join('、')}` : ''}
       tokenUsed = (data.usage?.input_tokens||0) + (data.usage?.output_tokens||0);
 
     } else {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
       const res = await fetch(`${AI_CONFIG.proxyURL}?target=kimi`, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${AI_CONFIG.kimiKey}`,
@@ -458,8 +461,11 @@ ${exclude.length ? `已有词（不要重复）：${exclude.join('、')}` : ''}
           max_tokens: 100,
         }),
       });
+      clearTimeout(timeout);
       if (!res.ok) throw new Error(`Kimi API error ${res.status}`);
-      const data = await res.json();
+      const rawText = await res.text();
+      if (!rawText) throw new Error('Kimi 返回空响应');
+      const data = JSON.parse(rawText);
       text = data.choices?.[0]?.message?.content?.trim() || '';
       tokenUsed = data.usage?.total_tokens || '?';
     }
